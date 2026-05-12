@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Scanner QR · Mitsui</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root {
+  --ink:    #0A0F1E;
+  --blue:   #2563EB;
+  --lblue:  #DBEAFE;
+  --green:  #059669;
+  --lgreen: #D1FAE5;
+  --red:    #DC2626;
+  --lred:   #FEE2E2;
+  --orange: #EA580C;
+  --lorng:  #FFEDD5;
+  --gray:   #64748B;
+  --lgray:  #F1F5F9;
+  --border: #E2E8F0;
+  --white:  #FFFFFF;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:'DM Sans',sans-serif;
+  background:var(--ink);
+  color:var(--white);
+  display:flex;flex-direction:column;
+  max-width:480px;margin:0 auto;
+}
+
+/* ── HEADER ── */
+.hdr{
+  padding:16px 20px 12px;
+  background:var(--ink);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.hdr-brand{
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
+  letter-spacing:.1em;color:#fff;
+}
+.hdr-sub{font-size:10px;color:rgba(255,255,255,.4);margin-top:1px}
+.hdr-status{
+  font-family:'DM Mono',monospace;font-size:10px;
+  padding:4px 10px;border-radius:20px;
+  background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);
+}
+.hdr-status.online{background:rgba(5,150,105,.2);color:#6EE7B7}
+
+/* ── SCANNER VIEW ── */
+.scanner-wrap{
+  flex:1;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+
+/* ── SCAN MODE ── */
+#scan-mode{
+  flex:1;display:flex;flex-direction:column;
+}
+
+/* Config bar */
+.config-bar{
+  background:rgba(255,255,255,.04);
+  border-bottom:1px solid rgba(255,255,255,.06);
+  padding:10px 16px;
+  display:flex;gap:8px;align-items:center;
+  flex-shrink:0;
+}
+.cfg-label{font-size:10px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.07em}
+.cfg-select{
+  flex:1;padding:6px 10px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.07);
+  color:#fff;font-size:12px;font-family:'DM Sans',sans-serif;
+  outline:none;
+}
+
+/* Camera area */
+.cam-area{
+  flex:1;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  background:#000;overflow:hidden;
+}
+#qr-reader{width:100%!important;height:100%!important}
+#qr-reader video{width:100%!important;height:100%!important;object-fit:cover}
+
+/* Viewfinder overlay */
+.viewfinder{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;z-index:10;
+}
+.vf-box{
+  width:220px;height:220px;position:relative;
+}
+.vf-corner{
+  position:absolute;width:28px;height:28px;
+  border-color:#fff;border-style:solid;
+  border-width:0;opacity:.9;
+}
+.vf-corner.tl{top:0;left:0;border-top-width:3px;border-left-width:3px;border-radius:4px 0 0 0}
+.vf-corner.tr{top:0;right:0;border-top-width:3px;border-right-width:3px;border-radius:0 4px 0 0}
+.vf-corner.bl{bottom:0;left:0;border-bottom-width:3px;border-left-width:3px;border-radius:0 0 0 4px}
+.vf-corner.br{bottom:0;right:0;border-bottom-width:3px;border-right-width:3px;border-radius:0 0 4px 0}
+.vf-scan-line{
+  position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,#2563EB,transparent);
+  animation:scanAnim 2s ease-in-out infinite;
+  top:0;
+}
+@keyframes scanAnim{
+  0%{top:0;opacity:0}
+  10%{opacity:1}
+  90%{opacity:1}
+  100%{top:100%;opacity:0}
+}
+.vf-hint{
+  position:absolute;bottom:-32px;left:50%;transform:translateX(-50%);
+  font-size:11px;color:rgba(255,255,255,.5);white-space:nowrap;
+}
+
+/* Shadow overlay outside box */
+.cam-shadow{
+  position:absolute;inset:0;
+  background:rgba(0,0,0,.5);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  padding:calc(50% - 110px) calc(50% - 110px);
+  pointer-events:none;z-index:9;
+}
+
+/* ── MODO BTN (Entrada / Salida) ── */
+.mode-bar{
+  display:flex;gap:0;flex-shrink:0;
+  border-top:1px solid rgba(255,255,255,.07);
+}
+.mode-btn{
+  flex:1;padding:14px;
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;
+  border:none;cursor:pointer;transition:all .15s;
+  background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);
+}
+.mode-btn:first-child{border-right:1px solid rgba(255,255,255,.07)}
+.mode-btn.active-entrada{background:#064E3B;color:#6EE7B7}
+.mode-btn.active-salida{background:#7F1D1D;color:#FCA5A5}
+
+/* ── RESULT VIEW ── */
+#result-view{
+  display:none;flex-direction:column;
+  flex:1;padding:0;background:var(--ink);
+}
+
+/* Result card */
+.result-card{
+  margin:20px;border-radius:16px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.1);
+  flex-shrink:0;
+}
+.rc-header{
+  padding:20px;
+  display:flex;align-items:center;gap:14px;
+}
+.rc-header.entrada{background:#064E3B}
+.rc-header.salida{background:#7F1D1D}
+.rc-icon{
+  width:52px;height:52px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;flex-shrink:0;
+}
+.rc-icon.entrada{background:rgba(110,231,183,.15)}
+.rc-icon.salida{background:rgba(252,165,165,.15)}
+.rc-type{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;opacity:.7;margin-bottom:3px}
+.rc-time{font-family:'DM Mono',monospace;font-size:28px;font-weight:500}
+.rc-date{font-size:11px;opacity:.6;margin-top:2px}
+
+.rc-body{background:rgba(255,255,255,.04);padding:18px 20px}
+.rc-field{margin-bottom:12px}
+.rc-field:last-child{margin-bottom:0}
+.rc-field-label{font-size:10px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}
+.rc-field-value{font-size:14px;font-weight:500}
+.rc-field-value.name{font-family:'Syne',sans-serif;font-size:16px;font-weight:700}
+.pos-pill{
+  display:inline-block;padding:2px 8px;border-radius:4px;
+  font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+  background:rgba(37,99,235,.3);color:#93C5FD;margin-top:2px;
+}
+.pos-pill.lavado{background:rgba(5,150,105,.3);color:#6EE7B7}
+
+/* Estado badge */
+.status-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;
+  margin-top:12px;
+}
+.sp-ok{background:rgba(5,150,105,.2);color:#6EE7B7;border:1px solid rgba(5,150,105,.3)}
+.sp-err{background:rgba(220,38,38,.2);color:#FCA5A5;border:1px solid rgba(220,38,38,.3)}
+.sp-dup{background:rgba(234,88,12,.2);color:#FDBA74;border:1px solid rgba(234,88,12,.3)}
+
+/* Logs */
+.log-section{
+  margin:0 20px 20px;flex:1;overflow-y:auto;
+}
+.log-title{font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.log-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:8px;
+  background:rgba(255,255,255,.04);margin-bottom:6px;
+  border:1px solid rgba(255,255,255,.06);
+}
+.log-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.log-dot.entrada{background:#6EE7B7}
+.log-dot.salida{background:#FCA5A5}
+.log-dot.error{background:#FCA5A5}
+.log-name{font-size:12px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-meta{font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.35)}
+
+/* Action buttons */
+.action-bar{
+  padding:16px 20px;display:flex;gap:10px;flex-shrink:0;
+  border-top:1px solid rgba(255,255,255,.07);
+}
+.a-btn{
+  flex:1;padding:13px;border-radius:10px;border:none;
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;
+  cursor:pointer;transition:all .14s;
+}
+.a-btn-scan{background:var(--blue);color:#fff}
+.a-btn-scan:hover{background:#1D4ED8}
+.a-btn-log{background:rgba(255,255,255,.08);color:#fff}
+.a-btn-log:hover{background:rgba(255,255,255,.14)}
+
+/* ── TOAST ── */
+.toast{
+  position:fixed;top:80px;left:50%;transform:translateX(-50%);
+  padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;
+  z-index:999;white-space:nowrap;
+  display:none;animation:toastIn .2s ease;
+}
+.toast.ok{background:#065F46;color:#6EE7B7;display:block}
+.toast.err{background:#7F1D1D;color:#FCA5A5;display:block}
+@keyframes toastIn{from{opacity:0;top:70px}to{opacity:1;top:80px}}
+
+/* ── LOADING ── */
+.loading-overlay{
+  position:absolute;inset:0;background:rgba(0,0,0,.7);
+  display:none;align-items:center;justify-content:center;
+  flex-direction:column;gap:12px;z-index:50;
+}
+.loading-overlay.show{display:flex}
+.spinner{
+  width:32px;height:32px;border-radius:50%;
+  border:3px solid rgba(255,255,255,.1);
+  border-top-color:var(--blue);
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div>
+    <div class="hdr-brand">MITSUI · SCANNER QR</div>
+    <div class="hdr-sub">Control de asistencia por fotocheck</div>
+  </div>
+  <div class="hdr-status" id="hdr-status">● Sin conexión</div>
+</div>
+
+<div class="scanner-wrap">
+
+  <!-- ── SCAN MODE ── -->
+  <div id="scan-mode">
+
+    <div class="config-bar">
+      <span class="cfg-label">Local</span>
+      <select class="cfg-select" id="sel-local">
+        <option value="MOLINA">Molina</option>
+        <option value="CANADA">Canadá</option>
+        <option value="MIRAFLORES FV">Miraflores FV</option>
+        <option value="MIRAFLORES CE">Miraflores CE</option>
+        <option value="VARI">Vari</option>
+        <option value="HINO">Hino</option>
+        <option value="ARAMBURU">Aramburu</option>
+      </select>
+      <span class="cfg-label" style="margin-left:8px">Supervisor</span>
+      <input type="text" class="cfg-select" id="inp-sup" placeholder="Tu nombre" style="max-width:130px">
+    </div>
+
+    <div class="cam-area">
+      <div id="qr-reader"></div>
+      <div class="cam-shadow"></div>
+      <div class="viewfinder">
+        <div class="vf-box">
+          <div class="vf-corner tl"></div>
+          <div class="vf-corner tr"></div>
+          <div class="vf-corner bl"></div>
+          <div class="vf-corner br"></div>
+          <div class="vf-scan-line"></div>
+          <div class="vf-hint">Apunta al QR del fotocheck</div>
+        </div>
+      </div>
+      <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <div style="font-size:12px;color:rgba(255,255,255,.5)">Guardando…</div>
+      </div>
+    </div>
+
+    <div class="mode-bar">
+      <button class="mode-btn active-entrada" id="btn-entrada" onclick="setModo('entrada')">
+        ➡️ ENTRADA
+      </button>
+      <button class="mode-btn" id="btn-salida" onclick="setModo('salida')">
+        ⬅️ SALIDA
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ── RESULT VIEW ── -->
+  <div id="result-view">
+
+    <div class="result-card" id="rc">
+      <div class="rc-header entrada" id="rc-header">
+        <div class="rc-icon entrada" id="rc-icon">➡️</div>
+        <div>
+          <div class="rc-type" id="rc-type">ENTRADA</div>
+          <div class="rc-time" id="rc-time">—</div>
+          <div class="rc-date" id="rc-date">—</div>
+        </div>
+      </div>
+      <div class="rc-body">
+        <div class="rc-field">
+          <div class="rc-field-label">Empleado</div>
+          <div class="rc-field-value name" id="rc-nombre">—</div>
+          <div><span class="pos-pill" id="rc-pos">—</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="rc-field">
+            <div class="rc-field-label">Local</div>
+            <div class="rc-field-value" id="rc-local">—</div>
+          </div>
+          <div class="rc-field">
+            <div class="rc-field-label">Área</div>
+            <div class="rc-field-value" id="rc-area">—</div>
+          </div>
+        </div>
+        <div id="rc-status"></div>
+      </div>
+    </div>
+
+    <div class="log-section">
+      <div class="log-title">Registros de hoy</div>
+      <div id="log-list"></div>
+    </div>
+
+    <div class="action-bar">
+      <button class="a-btn a-btn-scan" onclick="volverScan()">📷 Escanear otro</button>
+      <button class="a-btn a-btn-log" onclick="verLog()">📋 Ver log ({{count}})</button>
+    </div>
+
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// CONFIG — reemplazar con la URL real del backend QR
+// ══════════════════════════════════════════════════════════════════
+const BACKEND_URL = "PEGAR_AQUI_URL_BACKEND_QR";
+const HORA_LIMITE_ENTRADA = "08:15"; // para detectar tardanza
+
+// ══════════════════════════════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════════════════════════════
+let modoActual  = "entrada"; // "entrada" | "salida"
+let scanner     = null;
+let scanLock    = false; // evitar doble lectura
+let logHoy      = JSON.parse(sessionStorage.getItem("qr_log")||"[]");
+let ultimoEscan = null;
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+window.addEventListener("load", () => {
+  // Si viene de un QR (parámetros en URL), mostrar resultado directo
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("nombre")) {
+    const emp = {
+      id:       params.get("id"),
+      nombre:   params.get("nombre"),
+      posicion: params.get("posicion"),
+      local:    params.get("local"),
+      area:     params.get("area"),
+    };
+    // Detectar si hay sesión previa de entrada para este empleado hoy
+    const entradaHoy = logHoy.find(l=>l.id===emp.id && l.tipo==="entrada");
+    modoActual = entradaHoy ? "salida" : "entrada";
+    procesarEscaneo(emp);
+  } else {
+    iniciarScanner();
+  }
+  renderLog();
+  verificarConexion();
+  setInterval(verificarConexion, 30000);
+});
+
+// ══════════════════════════════════════════════════════════════════
+// SCANNER
+// ══════════════════════════════════════════════════════════════════
+function iniciarScanner() {
+  if (scanner) return;
+  scanner = new Html5Qrcode("qr-reader");
+  const config = {
+    fps: 12,
+    qrbox: { width: 220, height: 220 },
+    aspectRatio: window.innerHeight / window.innerWidth,
+  };
+  scanner.start(
+    { facingMode: "environment" },
+    config,
+    onQrSuccess,
+    () => {} // error silencioso
+  ).catch(err => {
+    toast("Sin acceso a la cámara: " + err, "err");
+  });
+}
+
+function detenerScanner() {
+  if (scanner) {
+    scanner.stop().catch(()=>{});
+    scanner = null;
+  }
+}
+
+function onQrSuccess(text) {
+  if (scanLock) return;
+  scanLock = true;
+  setTimeout(()=>{ scanLock = false; }, 3000);
+
+  try {
+    // Parsear URL del QR
+    let emp;
+    if (text.includes("nombre=")) {
+      const url    = new URL(text, window.location.href);
+      const params = url.searchParams;
+      emp = {
+        id:       params.get("id"),
+        nombre:   params.get("nombre"),
+        posicion: params.get("posicion"),
+        local:    params.get("local"),
+        area:     params.get("area"),
+      };
+    } else {
+      // Intentar JSON directo
+      emp = JSON.parse(text);
+    }
+
+    if (!emp || !emp.nombre) throw new Error("QR inválido");
+    procesarEscaneo(emp);
+
+  } catch(e) {
+    toast("QR no reconocido", "err");
+    scanLock = false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PROCESAR ESCANEO
+// ══════════════════════════════════════════════════════════════════
+async function procesarEscaneo(emp) {
+  detenerScanner();
+
+  const ahora    = new Date();
+  const hora     = ahora.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"});
+  const fecha    = ahora.toISOString().split("T")[0];
+  const local    = document.getElementById("sel-local")?.value || emp.local;
+  const sup      = document.getElementById("inp-sup")?.value.trim() || "—";
+
+  // Detectar tardanza (solo en entrada)
+  let tardanza = false;
+  if (modoActual === "entrada") {
+    const lim  = HORA_LIMITE_ENTRADA.split(":").map(Number);
+    const entr = [ahora.getHours(), ahora.getMinutes()];
+    tardanza   = (entr[0]*60+entr[1]) > (lim[0]*60+lim[1]);
+  }
+
+  // Verificar duplicado en la misma sesión
+  const dupKey = `${emp.id}-${modoActual}-${fecha}`;
+  const esDup  = logHoy.some(l => `${l.id}-${l.tipo}-${l.fecha}` === dupKey);
+
+  ultimoEscan = {
+    id: emp.id, nombre: emp.nombre, posicion: emp.posicion,
+    local, area: emp.area, tipo: modoActual,
+    hora, fecha, tardanza, supervisor: sup,
+    duplicado: esDup,
+  };
+
+  // Mostrar resultado
+  mostrarResultado(ultimoEscan);
+
+  if (!esDup) {
+    // Guardar en log local
+    logHoy.push(ultimoEscan);
+    sessionStorage.setItem("qr_log", JSON.stringify(logHoy));
+    // Enviar a Google Sheets
+    await enviarASheets(ultimoEscan);
+  }
+
+  renderLog();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MOSTRAR RESULTADO
+// ══════════════════════════════════════════════════════════════════
+function mostrarResultado(r) {
+  document.getElementById("scan-mode").style.display    = "none";
+  document.getElementById("result-view").style.display  = "flex";
+
+  const isEntrada = r.tipo === "entrada";
+  const isLavado  = r.posicion.includes("LAVADO");
+
+  // Header
+  const rcHeader = document.getElementById("rc-header");
+  const rcIcon   = document.getElementById("rc-icon");
+  rcHeader.className = `rc-header ${r.tipo}`;
+  rcIcon.className   = `rc-icon ${r.tipo}`;
+  rcIcon.textContent = isEntrada ? "➡️" : "⬅️";
+  document.getElementById("rc-type").textContent = isEntrada ? "REGISTRO DE ENTRADA" : "REGISTRO DE SALIDA";
+  document.getElementById("rc-time").textContent = r.hora;
+  document.getElementById("rc-date").textContent =
+    new Date(r.fecha+"T12:00:00").toLocaleDateString("es-PE",{weekday:"long",day:"numeric",month:"long"});
+
+  // Datos empleado
+  document.getElementById("rc-nombre").textContent = r.nombre;
+  const rcPos = document.getElementById("rc-pos");
+  rcPos.textContent  = r.posicion;
+  rcPos.className    = `pos-pill${isLavado?" lavado":""}`;
+  document.getElementById("rc-local").textContent = r.local;
+  document.getElementById("rc-area").textContent  = r.area;
+
+  // Estado
+  const rcStatus = document.getElementById("rc-status");
+  if (r.duplicado) {
+    rcStatus.innerHTML = `<span class="status-pill sp-dup">⚠️ Ya registrado hoy (${r.tipo})</span>`;
+  } else if (isEntrada && r.tardanza) {
+    rcStatus.innerHTML = `<span class="status-pill sp-err">⏰ Tardanza detectada</span>`;
+  } else if (!isEntrada) {
+    // Calcular tiempo trabajado si hay entrada
+    const entradaReg = logHoy.find(l=>l.id===r.id && l.tipo==="entrada" && l.fecha===r.fecha);
+    if (entradaReg) {
+      const [eh,em] = entradaReg.hora.split(":").map(Number);
+      const [sh,sm] = r.hora.split(":").map(Number);
+      const mins = (sh*60+sm)-(eh*60+em);
+      const horas = Math.floor(mins/60);
+      const minutos = mins%60;
+      rcStatus.innerHTML = `<span class="status-pill sp-ok">✅ Jornada: ${horas}h ${minutos}min</span>`;
+    } else {
+      rcStatus.innerHTML = `<span class="status-pill sp-ok">✅ Salida registrada</span>`;
+    }
+  } else {
+    rcStatus.innerHTML = `<span class="status-pill sp-ok">✅ Entrada registrada</span>`;
+  }
+
+  // Vibración de feedback
+  if (navigator.vibrate) {
+    navigator.vibrate(r.duplicado ? [100,50,100] : [150]);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ENVIAR A GOOGLE SHEETS
+// ══════════════════════════════════════════════════════════════════
+async function enviarASheets(r) {
+  const loading = document.getElementById("loading");
+  if (loading) loading.classList.add("show");
+
+  try {
+    if (BACKEND_URL === "PEGAR_AQUI_URL_BACKEND_QR") {
+      // Modo demo: simular éxito
+      await new Promise(res=>setTimeout(res,600));
+      actualizarEstadoConexion(true);
+      return;
+    }
+    const resp = await fetch(BACKEND_URL, {
+      method:  "POST",
+      headers: {"Content-Type":"text/plain"},
+      body:    JSON.stringify({ accion:"qr_escaneo", registro: r }),
+    });
+    const data = await resp.json();
+    actualizarEstadoConexion(data.status === "ok");
+    if (data.status !== "ok") toast("Error: " + (data.message||"desconocido"), "err");
+  } catch(err) {
+    actualizarEstadoConexion(false);
+    toast("Sin conexión — registro guardado localmente", "err");
+  } finally {
+    if (loading) loading.classList.remove("show");
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LOG
+// ══════════════════════════════════════════════════════════════════
+function renderLog() {
+  const list = document.getElementById("log-list");
+  if (!list) return;
+  if (!logHoy.length) {
+    list.innerHTML = `<div style="font-size:12px;color:rgba(255,255,255,.3);text-align:center;padding:16px">Sin registros aún</div>`;
+    return;
+  }
+  list.innerHTML = [...logHoy].reverse().slice(0,20).map(l=>`
+    <div class="log-item">
+      <div class="log-dot ${l.tipo}"></div>
+      <div class="log-name">${l.nombre}</div>
+      <div class="log-meta">${l.hora} · ${l.tipo==="entrada"?"ENT":"SAL"}</div>
+    </div>`).join("");
+
+  // Actualizar contador botón
+  const btn = document.querySelector(".a-btn-log");
+  if (btn) btn.textContent = `📋 Log (${logHoy.length})`;
+}
+
+function verLog() {
+  // Toggle log visible
+  const logSection = document.querySelector(".log-section");
+  if (logSection) {
+    logSection.scrollIntoView({behavior:"smooth"});
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MODO ENTRADA / SALIDA
+// ══════════════════════════════════════════════════════════════════
+function setModo(modo) {
+  modoActual = modo;
+  document.getElementById("btn-entrada").className =
+    "mode-btn" + (modo==="entrada" ? " active-entrada" : "");
+  document.getElementById("btn-salida").className =
+    "mode-btn" + (modo==="salida" ? " active-salida" : "");
+}
+
+function volverScan() {
+  document.getElementById("scan-mode").style.display    = "flex";
+  document.getElementById("result-view").style.display  = "none";
+  scanLock = false;
+  iniciarScanner();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════
+async function verificarConexion() {
+  if (BACKEND_URL === "PEGAR_AQUI_URL_BACKEND_QR") return;
+  try {
+    const r = await fetch(BACKEND_URL + "?ping=1", {method:"GET"});
+    const d = await r.json();
+    actualizarEstadoConexion(d.status === "ok");
+  } catch{ actualizarEstadoConexion(false); }
+}
+
+function actualizarEstadoConexion(online) {
+  const el = document.getElementById("hdr-status");
+  if (!el) return;
+  el.textContent  = online ? "● En línea" : "● Sin conexión";
+  el.className    = "hdr-status" + (online ? " online" : "");
+}
+
+function toast(msg, type) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className   = `toast ${type}`;
+  setTimeout(()=>{ t.className = "toast"; }, 3500);
+}
+</script>
+</body>
+</html>
