@@ -378,7 +378,7 @@ body{
 // CONFIG — reemplazar con la URL real del backend QR
 // ══════════════════════════════════════════════════════════════════
 const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxvy9Gr-Elm_OixpAafsZkSUZ9AUZqg4R6Fa_JW_scby4EV1uUhMg2I1xk23Cvby6pw/exec";
-const HORA_LIMITE_ENTRADA = "08:10"; // para detectar tardanza
+const HORA_LIMITE_ENTRADA = "08:15"; // para detectar tardanza
 
 // ══════════════════════════════════════════════════════════════════
 // ESTADO
@@ -510,9 +510,29 @@ async function procesarEscaneo(emp) {
   mostrarResultado(ultimoEscan);
 
   if (!esDup) {
-    // Guardar en log local
+    // Guardar en log de sesión
     logHoy.push(ultimoEscan);
     sessionStorage.setItem("qr_log", JSON.stringify(logHoy));
+
+    // ── Escribir en localStorage para que App Asistencia lo lea ──────────
+    // La App lee "bk_qr_entradas" al cargar y marca Presente automáticamente
+    if (ultimoEscan.tipo === "entrada") {
+      try {
+        const entradas = JSON.parse(localStorage.getItem("bk_qr_entradas") || "{}");
+        // Clave: "fecha|local|nombre" → valor: hora de entrada
+        const key = `${ultimoEscan.fecha}|${ultimoEscan.local}|${ultimoEscan.nombre}`;
+        entradas[key] = {
+          hora:     ultimoEscan.hora,
+          tardanza: ultimoEscan.tardanza,
+          id:       ultimoEscan.id,
+          posicion: ultimoEscan.posicion,
+          area:     ultimoEscan.area,
+        };
+        localStorage.setItem("bk_qr_entradas", JSON.stringify(entradas));
+      } catch(e) { console.warn("Error guardando QR en localStorage:", e); }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     // Enviar a Google Sheets
     await enviarASheets(ultimoEscan);
   }
@@ -586,7 +606,7 @@ async function enviarASheets(r) {
   if (loading) loading.classList.add("show");
 
   try {
-    if (BACKEND_URL === "PEGAR_AQUI_URL_BACKEND_QR") {
+    if (BACKEND_URL === "https://script.google.com/macros/s/AKfycbxvy9Gr-Elm_OixpAafsZkSUZ9AUZqg4R6Fa_JW_scby4EV1uUhMg2I1xk23Cvby6pw/exec") {
       // Modo demo: simular éxito
       await new Promise(res=>setTimeout(res,600));
       actualizarEstadoConexion(true);
@@ -660,7 +680,7 @@ function volverScan() {
 // UTILS
 // ══════════════════════════════════════════════════════════════════
 async function verificarConexion() {
-  if (BACKEND_URL === "PEGAR_AQUI_URL_BACKEND_QR") return;
+  if (BACKEND_URL === "https://script.google.com/macros/s/AKfycbxvy9Gr-Elm_OixpAafsZkSUZ9AUZqg4R6Fa_JW_scby4EV1uUhMg2I1xk23Cvby6pw/exec") return;
   try {
     const r = await fetch(BACKEND_URL + "?ping=1", {method:"GET"});
     const d = await r.json();
