@@ -606,10 +606,11 @@ async function enviarASheets(r) {
   if (loading) loading.classList.add("show");
 
   try {
-    if (BACKEND_URL === "https://script.google.com/macros/s/AKfycbxvy9Gr-Elm_OixpAafsZkSUZ9AUZqg4R6Fa_JW_scby4EV1uUhMg2I1xk23Cvby6pw/exec") {
-      // Modo demo: simular éxito
+    if (!BACKEND_URL || BACKEND_URL === "https://script.google.com/macros/s/AKfycbxvy9Gr-Elm_OixpAafsZkSUZ9AUZqg4R6Fa_JW_scby4EV1uUhMg2I1xk23Cvby6pw/exec") {
+      // Modo demo: URL no configurada
       await new Promise(res=>setTimeout(res,600));
-      actualizarEstadoConexion(true);
+      actualizarEstadoConexion(false);
+      toast("URL del backend no configurada", "err");
       return;
     }
     const resp = await fetch(BACKEND_URL, {
@@ -617,16 +618,59 @@ async function enviarASheets(r) {
       headers: {"Content-Type":"text/plain"},
       body:    JSON.stringify({ accion:"qr_escaneo", registro: r }),
     });
-    const data = await resp.json();
+    // Apps Script siempre devuelve 200; si hay error viene en el JSON
+    let data;
+    try { data = await resp.json(); }
+    catch { data = { status: "error", message: "Respuesta no válida del servidor" }; }
     actualizarEstadoConexion(data.status === "ok");
-    if (data.status !== "ok") toast("Error: " + (data.message||"desconocido"), "err");
+    if (data.status !== "ok") toast("⚠️ " + (data.message||"Error del servidor"), "err");
+    else toast("✅ Registro enviado a Google Sheets", "ok");
   } catch(err) {
     actualizarEstadoConexion(false);
-    toast("Sin conexión — registro guardado localmente", "err");
+    // Guardar en cola local para reenvío
+    encolarParaReenvio(r);
+    toast("Sin conexión — guardado en cola local para reenviar", "err");
   } finally {
     if (loading) loading.classList.remove("show");
   }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// COLA DE REENVÍO (registros que no llegaron por falta de conexión)
+// ══════════════════════════════════════════════════════════════════
+function encolarParaReenvio(r) {
+  const cola = JSON.parse(localStorage.getItem("bk_qr_cola") || "[]");
+  cola.push(r);
+  localStorage.setItem("bk_qr_cola", JSON.stringify(cola));
+}
+
+async function reenviarCola() {
+  const cola = JSON.parse(localStorage.getItem("bk_qr_cola") || "[]");
+  if (!cola.length) return;
+  let enviados = 0;
+  for (const r of cola) {
+    try {
+      const resp = await fetch(BACKEND_URL, {
+        method: "POST",
+        headers: {"Content-Type":"text/plain"},
+        body: JSON.stringify({ accion:"qr_escaneo", registro: r }),
+      });
+      const data = await resp.json();
+      if (data.status === "ok") enviados++;
+    } catch { break; }
+  }
+  if (enviados > 0) {
+    const restantes = cola.slice(enviados);
+    localStorage.setItem("bk_qr_cola", JSON.stringify(restantes));
+    toast(`✅ ${enviados} registro${enviados>1?"s":""} en cola enviado${enviados>1?"s":""}`, "ok");
+  }
+}
+
+// Intentar reenviar cola al recuperar conexión
+setInterval(() => {
+  const cola = JSON.parse(localStorage.getItem("bk_qr_cola") || "[]");
+  if (cola.length > 0) reenviarCola();
+}, 60000);
 
 // ══════════════════════════════════════════════════════════════════
 // LOG
@@ -680,7 +724,7 @@ function volverScan() {
 // UTILS
 // ══════════════════════════════════════════════════════════════════
 async function verificarConexion() {
-  if (BACKEND_URL === "https://script.google.com/macros/s/AKfycbxvy9Gr-Elm_OixpAafsZkSUZ9AUZqg4R6Fa_JW_scby4EV1uUhMg2I1xk23Cvby6pw/exec") return;
+  if (!BACKEND_URL || BACKEND_URL === "https://script.google.com/macros/s/AKfycbxvy9Gr-Elm_OixpAafsZkSUZ9AUZqg4R6Fa_JW_scby4EV1uUhMg2I1xk23Cvby6pw/exec") return;
   try {
     const r = await fetch(BACKEND_URL + "?ping=1", {method:"GET"});
     const d = await r.json();
