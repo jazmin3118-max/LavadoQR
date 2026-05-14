@@ -606,7 +606,7 @@ async function enviarASheets(r) {
   if (loading) loading.classList.add("show");
 
   try {
-    if (!BACKEND_URL || BACKEND_URL === "https://script.google.com/macros/s/AKfycbxvy9Gr-Elm_OixpAafsZkSUZ9AUZqg4R6Fa_JW_scby4EV1uUhMg2I1xk23Cvby6pw/exec") {
+    if (!BACKEND_URL || BACKEND_URL === "PEGAR_AQUI_URL_BACKEND_QR") {
       // Modo demo: URL no configurada
       await new Promise(res=>setTimeout(res,600));
       actualizarEstadoConexion(false);
@@ -724,7 +724,7 @@ function volverScan() {
 // UTILS
 // ══════════════════════════════════════════════════════════════════
 async function verificarConexion() {
-  if (!BACKEND_URL || BACKEND_URL === "https://script.google.com/macros/s/AKfycbxvy9Gr-Elm_OixpAafsZkSUZ9AUZqg4R6Fa_JW_scby4EV1uUhMg2I1xk23Cvby6pw/exec") return;
+  if (!BACKEND_URL || BACKEND_URL === "PEGAR_AQUI_URL_BACKEND_QR") return;
   try {
     const r = await fetch(BACKEND_URL + "?ping=1", {method:"GET"});
     const d = await r.json();
